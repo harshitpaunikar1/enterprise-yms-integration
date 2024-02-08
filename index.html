@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise YMS Integration Is Mostly About Mistrusting Success</title>
+  <meta name="description" content="An infrastructure-minded deep dive into connecting a yard management system to ERP, WMS, and recognition systems without hand-waving away retries, reconciliation, or ownership.">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --ink: #111111;
+      --soft-ink: #333333;
+      --muted: #555555;
+      --quiet: #888888;
+      --rule: #e8e8e8;
+      --panel: #f5f5f5;
+      --panel-dark: #f0f0f0;
+      --white: #ffffff;
+      --black: #111111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      line-height: 1.72;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.15em;
+    }
+
+    .page {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 18px 18px 56px;
+    }
+
+    .frame {
+      border: 1px solid var(--black);
+      background: var(--white);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+      min-height: 520px;
+    }
+
+    .hero-main {
+      padding: 34px 34px 28px;
+      border-right: 1px solid var(--black);
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 18px;
+      background:
+        linear-gradient(180deg, #ffffff 0, #ffffff 72%, #f5f5f5 72%, #f5f5f5 100%);
+    }
+
+    .kicker {
+      margin: 0;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 11ch;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(3rem, 5.8vw, 5.8rem);
+      line-height: 0.92;
+      letter-spacing: -0.04em;
+    }
+
+    .deck {
+      max-width: 50rem;
+      margin: 0;
+      font-size: 1.16rem;
+      color: var(--muted);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      align-self: end;
+    }
+
+    .hero-metric {
+      border-top: 1px solid var(--black);
+      padding-top: 10px;
+    }
+
+    .hero-metric span {
+      display: block;
+      margin-bottom: 7px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .hero-metric strong {
+      font-size: 1.45rem;
+      font-weight: 600;
+    }
+
+    .hero-side {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 18px;
+      padding: 26px 24px 24px;
+      background: var(--panel);
+    }
+
+    .side-block {
+      border-top: 1px solid var(--black);
+      padding-top: 10px;
+    }
+
+    .side-block h2,
+    .side-block p,
+    .side-block ul {
+      margin: 0;
+    }
+
+    .side-block h2 {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .side-block ul {
+      padding-left: 18px;
+      color: var(--soft-ink);
+      font-size: 0.96rem;
+    }
+
+    .side-note {
+      border: 1px solid var(--soft-ink);
+      padding: 14px;
+      background: var(--white);
+      font-size: 0.95rem;
+    }
+
+    .article {
+      display: grid;
+      grid-template-columns: 230px minmax(0, 1fr) 300px;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .rail,
+    .right-rail {
+      position: sticky;
+      top: 18px;
+      align-self: start;
+      display: grid;
+      gap: 14px;
+    }
+
+    .rail-card,
+    .right-card {
+      border: 1px solid var(--rule);
+      background: var(--panel);
+      padding: 14px;
+    }
+
+    .rail-card h2,
+    .right-card h2 {
+      margin: 0 0 10px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .rail-card ol,
+    .right-card ul {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 0.92rem;
+    }
+
+    .rail-card p,
+    .right-card p {
+      margin: 0;
+      font-size: 0.93rem;
+    }
+
+    .content {
+      min-width: 0;
+      display: grid;
+      gap: 30px;
+    }
+
+    .checkpoint {
+      border-top: 1px solid var(--black);
+      padding-top: 18px;
+    }
+
+    .checkpoint-head {
+      display: grid;
+      grid-template-columns: 98px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+
+    .checkpoint-tag {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 78px;
+      border: 1px solid var(--black);
+      background: var(--black);
+      color: var(--white);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .checkpoint h2 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2.6vw, 2.7rem);
+      line-height: 1.03;
+      letter-spacing: -0.03em;
+    }
+
+    .checkpoint p,
+    .checkpoint ul,
+    .checkpoint table {
+      margin: 0 0 16px;
+    }
+
+    .checkpoint ul {
+      padding-left: 20px;
+    }
+
+    .lead-paragraph {
+      font-size: 1.08rem;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin: 10px 0 18px;
+    }
+
+    .note {
+      border: 1px solid var(--soft-ink);
+      background: var(--panel-dark);
+      padding: 14px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 7px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    figure {
+      margin: 18px 0 12px;
+    }
+
+    .diagram {
+      border: 1px solid var(--black);
+      padding: 18px;
+      background: var(--white);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .code {
+      margin: 18px 0;
+      padding: 18px 20px;
+      background: #111111;
+      color: #f5f5f5;
+      border: 1px solid #111111;
+      overflow-x: auto;
+    }
+
+    pre,
+    code {
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    pre {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.58;
+      white-space: pre;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.96rem;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--rule);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: var(--panel);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .ending {
+      border-top: 2px solid var(--black);
+      padding-top: 16px;
+      font-size: 1.08rem;
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .article {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-main {
+        border-right: none;
+        border-bottom: 1px solid var(--black);
+      }
+
+      .rail,
+      .right-rail {
+        position: static;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        padding: 12px 12px 40px;
+      }
+
+      .hero-grid,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .checkpoint-head {
+        grid-template-columns: 1fr;
+      }
+
+      .checkpoint-tag {
+        min-height: auto;
+        justify-content: flex-start;
+      }
+
+      .diagram {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero frame">
+      <section class="hero-main">
+        <p class="kicker">Enterprise Integration Deep Dive / Logistics Systems</p>
+        <h1>Enterprise YMS Integration Is Mostly About Mistrusting Success</h1>
+        <p class="deck">A yard event is only useful when the right downstream system trusts it enough to stop retyping it. That trust does not come from a slogan about connectivity. It comes from interface contracts, retries, dead-letter paths, reconciliation routines, and painfully explicit ownership when two systems disagree.</p>
+        <div class="hero-grid">
+          <div class="hero-metric">
+            <span>Core Event Spine</span>
+            <strong>Arrival to gate-out</strong>
+          </div>
+          <div class="hero-metric">
+            <span>Named Interfaces</span>
+            <strong>REST / SFTP / Queues</strong>
+          </div>
+          <div class="hero-metric">
+            <span>Security Controls</span>
+            <strong>SSO, OAuth2, RBAC</strong>
+          </div>
+          <div class="hero-metric">
+            <span>Repo Reality</span>
+            <strong>README-led evidence</strong>
+          </div>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="side-block">
+          <h2>What The Folder Actually Proves</h2>
+          <ul>
+            <li>A concrete integration problem exists between YMS, ERP, WMS, finance, and recognition systems.</li>
+            <li>The intended solution includes a canonical data model, idempotent APIs, event streaming, and retry handling.</li>
+            <li>The operating concerns are not decorative: security, tenant isolation, tracing, stress tests, and rollback are named explicitly.</li>
+          </ul>
+        </div>
+        <div class="side-block">
+          <h2>What It Does Not Prove</h2>
+          <ul>
+            <li>No checked-in source code.</li>
+            <li>No sample payload exports.</li>
+            <li>No screenshots or live KPI dashboards.</li>
+          </ul>
+        </div>
+        <div class="side-note">That evidence gap changes the kind of article this can credibly be. I can go deep on the integration seams described in the README. I should not pretend I have runtime proof for claims the folder does not actually contain.</div>
+      </aside>
+    </header>
+
+    <main class="article">
+      <aside class="rail">
+        <section class="rail-card">
+          <h2>Integration Checkpoints</h2>
+          <ol>
+            <li>Define operational truth.</li>
+            <li>Choose sync versus async on purpose.</li>
+            <li>Design for duplicates and misses.</li>
+            <li>Own reconciliation explicitly.</li>
+            <li>Separate system boundaries from team boundaries.</li>
+          </ol>
+        </section>
+        <section class="rail-card">
+          <h2>Operational Events</h2>
+          <p><code>arrival</code>, <code>gate_in</code>, <code>dock_assignment</code>, <code>yard_move</code>, <code>gate_out</code></p>
+        </section>
+      </aside>
+
+      <div class="content">
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 01</div>
+            <h2>Disconnected yard operations are not a visibility problem first. They are a truth-distribution problem.</h2>
+          </div>
+          <p class="lead-paragraph">The README describes a logistics environment where the yard management system does not connect cleanly to planning, warehouse, finance, or recognition systems. I read that as a far more specific failure than “siloed data.” The real issue is that operational truth is fragmented. The truck arrives once, but the arrival is represented several different ways. A dock assignment changes once, but multiple systems hear about it on different schedules and in different formats. That is why manual re-entry creeps in. People retype when systems cannot be trusted to agree.</p>
+          <p>Integration work gets trivialized because everyone likes to talk about the list of systems and almost nobody likes to talk about the discipline required between them. The hard part is not connecting “YMS to ERP” in the abstract. The hard part is deciding which system owns a field, when an update is authoritative, how late events are handled, and what the operator should do when one system says a trailer is still at the gate while another already assigned it to a dock.</p>
+          <p>The folder’s stated event spine is useful because it names the operational moments that matter: <code>arrival</code>, <code>gate-in</code>, <code>dock assignment</code>, <code>yard move</code>, and <code>gate-out</code>. Those are not just event labels. They are synchronization obligations. Some of them affect planning. Some affect warehouse execution. Some affect finance and audit. A grown-up integration design has to respect those differences instead of pushing every event through the same pipe and calling it architecture.</p>
+
+          <figure>
+            <div class="diagram">
+              <svg viewBox="0 0 1060 700" role="img" aria-labelledby="constellation-title constellation-desc">
+                <title id="constellation-title">Interface constellation around the yard management system</title>
+                <desc id="constellation-desc">A monochrome transport-map style diagram showing the YMS at the center, connected to ERP, WMS, recognition, finance, and identity systems, with protocol labels and a retry and reconcile loop underneath.</desc>
+                <defs>
+                  <marker id="arrow-a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#111111"></path>
+                  </marker>
+                </defs>
+
+                <rect x="20" y="20" width="1020" height="660" fill="#ffffff" stroke="#111111" stroke-width="1.5"></rect>
+
+                <rect x="420" y="220" width="220" height="120" rx="8" fill="#111111" stroke="#111111" stroke-width="1.5"></rect>
+                <text x="530" y="265" text-anchor="middle" font-size="22" font-weight="700" fill="#f5f5f5">YMS Core</text>
+                <text x="530" y="294" text-anchor="middle" font-size="14" fill="#f5f5f5">yard events + status authority</text>
+                <text x="530" y="316" text-anchor="middle" font-size="14" fill="#dddddd">arrival / dock / move / gate-out</text>
+
+                <rect x="120" y="90" width="180" height="88" fill="#f5f5f5" stroke="#111111" stroke-width="1.4"></rect>
+                <text x="210" y="126" text-anchor="middle" font-size="18" font-weight="600" fill="#111111">ERP</text>
+                <text x="210" y="151" text-anchor="middle" font-size="13" fill="#111111">orders, billing, master data</text>
+
+                <rect x="760" y="90" width="180" height="88" fill="#f5f5f5" stroke="#111111" stroke-width="1.4"></rect>
+                <text x="850" y="126" text-anchor="middle" font-size="18" font-weight="600" fill="#111111">WMS</text>
+                <text x="850" y="147" text-anchor="middle" font-size="12" fill="#111111">dock readiness,</text>
+                <text x="850" y="162" text-anchor="middle" font-size="12" fill="#111111">inventory state</text>
+
+                <rect x="120" y="410" width="180" height="88" fill="#f5f5f5" stroke="#111111" stroke-width="1.4"></rect>
+                <text x="210" y="446" text-anchor="middle" font-size="18" font-weight="600" fill="#111111">Recognition</text>
+                <text x="210" y="467" text-anchor="middle" font-size="12" fill="#111111">gate OCR / plate /</text>
+                <text x="210" y="482" text-anchor="middle" font-size="12" fill="#111111">trailer reads</text>
+
+                <rect x="760" y="410" width="180" height="88" fill="#f5f5f5" stroke="#111111" stroke-width="1.4"></rect>
+                <text x="850" y="446" text-anchor="middle" font-size="18" font-weight="600" fill="#111111">Finance</text>
+                <text x="850" y="467" text-anchor="middle" font-size="12" fill="#111111">charges, compliance,</text>
+                <text x="850" y="482" text-anchor="middle" font-size="12" fill="#111111">audit trail</text>
+
+                <rect x="438" y="78" width="184" height="70" fill="#ffffff" stroke="#333333" stroke-width="1.2"></rect>
+                <text x="530" y="108" text-anchor="middle" font-size="16" font-weight="600" fill="#111111">Identity + Access</text>
+                <text x="530" y="130" text-anchor="middle" font-size="13" fill="#555555">SSO / OAuth2 / RBAC</text>
+
+                <line x1="300" y1="164" x2="420" y2="236" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-a)"></line>
+                <text x="316" y="182" font-size="12" fill="#555555">REST / JSON</text>
+
+                <line x1="760" y1="164" x2="640" y2="236" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-a)"></line>
+                <text x="692" y="182" font-size="12" fill="#555555">webhooks + queues</text>
+
+                <line x1="300" y1="454" x2="420" y2="324" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-a)"></line>
+                <text x="300" y="382" font-size="12" fill="#555555">recognition events</text>
+
+                <line x1="640" y1="324" x2="760" y2="454" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-a)"></line>
+                <text x="690" y="392" font-size="12" fill="#555555">status + charge events</text>
+
+                <line x1="530" y1="148" x2="530" y2="220" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-a)"></line>
+                <text x="548" y="190" font-size="12" fill="#555555">token-backed access</text>
+
+                <rect x="120" y="560" width="820" height="76" fill="#f0f0f0" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="150" y="590" font-size="16" font-weight="700" fill="#111111">Retry + reconcile loop</text>
+                <text x="150" y="615" font-size="13" fill="#111111">validation failure → retry queue → dead-letter review → field correction → replay with idempotency key intact</text>
+                <line x1="720" y1="598" x2="885" y2="598" stroke="#111111" stroke-width="1.3" marker-end="url(#arrow-a)"></line>
+                <text x="760" y="585" font-size="12" fill="#555555">operational recovery path</text>
+              </svg>
+            </div>
+            <figcaption>The architecture is not a hub-and-spoke vanity graphic. It is a route map for operational truth, with the retry and reconcile loop shown as part of the system rather than as an embarrassing afterthought.</figcaption>
+          </figure>
+        </section>
+
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 02</div>
+            <h2>The first real design decision is the canonical record, because every connector downstream depends on it.</h2>
+          </div>
+          <p class="lead-paragraph">The README explicitly calls out a canonical data model for orders, loads, and assets. Good. Without that, every new enterprise onboarding turns into a field-mapping incident. One client says trailer, another says unit, another splits inbound and outbound legs across separate records, and by the time the connector is “done” nobody remembers which system truly owns appointment time or gate status.</p>
+          <p>A canonical model is where you decide what the YMS believes. Not what every external source calls a thing, but what the platform accepts as its durable internal meaning. In practice that means defining stable identifiers, explicit timestamps, source-system attribution, and lifecycle states that can survive translation. If you skip that work, retries become dangerous because you cannot tell whether a replay is duplicating a state transition or repairing a missing one.</p>
+          <p>I would insist that the canonical payload carry enough context to let downstream systems reconcile without asking humans to read tea leaves. A gate event should include the facility, the load or order reference, the asset identity, the event timestamp, and an idempotency token that survives retransmission. That is not overengineering. That is the bare minimum for keeping multiple operational systems synchronized after the first network miss or duplicate delivery.</p>
+
+          <div class="code">
+            <pre>{
+  "event_id": "evt_20260426_001842",            // stable replay-safe event key
+  "event_type": "gate_in",
+  "occurred_at": "2026-04-26T08:42:19Z",
+  "facility_id": "yard_north_02",
+  "load_id": "load_88421",
+  "asset": {
+    "trailer_id": "trl_9917",
+    "tractor_plate": "MH12AB1138"
+  },
+  "appointment": {
+    "erp_order_id": "erp_77218",
+    "dock_window_start": "2026-04-26T09:00:00Z"
+  },
+  "source_system": "gate_recognition",
+  "idempotency_key": "gate_in|yard_north_02|trl_9917|2026-04-26T08:42:19Z"
+}</pre>
+          </div>
+
+          <div class="split">
+            <div class="note">
+              <strong>What The README Supports</strong>
+              <p>Orders, loads, and assets are explicitly named as canonical-model entities.</p>
+            </div>
+            <div class="note">
+              <strong>What I Am Inferring</strong>
+              <p>The exact field list above is illustrative, but it is the kind of shape the described architecture needs if idempotency and reconciliation are supposed to work.</p>
+            </div>
+          </div>
+
+          <p>The other benefit of a canonical record is political, and enterprise articles too often dodge that point. Once the internal model exists, ownership arguments become concrete. ERP can own order identity and billing references. Recognition can supply detection events. WMS can own dock readiness and inventory implications. The YMS can own yard-state transitions. That separation is healthier than the common anti-pattern where every system treats its own payload as the truth and the integration layer degenerates into permanent diplomacy.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 03</div>
+            <h2>Sync and async paths should not be mixed just because the same business process touches both.</h2>
+          </div>
+          <p class="lead-paragraph">The README mentions REST/JSON, SFTP, queues, webhooks, and event streaming. That mix is believable. It also means the integration story has to be explicit about why each path exists. If you flatten them into “multiple connectors,” you miss the most important operational distinction in the whole design: some interactions require immediate validation, while others are safer as eventual status propagation.</p>
+          <p>I would reserve synchronous APIs for requests that must fail fast and clearly. Master-data lookups, appointment creation, explicit status confirmations, and authenticated control actions belong there. They need immediate response codes because the caller is blocked on an answer. By contrast, gate events, yard moves, status propagation, and downstream notifications are better treated as asynchronous messages whenever possible. Those flows are naturally bursty, they can arrive out of order, and they benefit from queue semantics, retries, and replay.</p>
+          <p>SFTP deserves its place too, even if architects like to act embarrassed by it. In enterprise environments, there is always at least one neighboring system that moves on batch files and committee-approved windows instead of neat APIs. The mature move is not to sneer at that reality. The mature move is to isolate it, validate it, and translate it into the same canonical model as the “modern” interfaces so the rest of the platform does not inherit the ugliness.</p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Interface Type</th>
+                <th>Good Use In This YMS Context</th>
+                <th>Failure Mode To Design For</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>REST / JSON</td>
+                <td>Appointment operations, master-data checks, authenticated control actions.</td>
+                <td>Caller timeouts, partial writes, duplicate retries after unclear responses.</td>
+              </tr>
+              <tr>
+                <td>Webhooks</td>
+                <td>Push status changes to subscribers that need near-real-time awareness.</td>
+                <td>Subscriber downtime, signature validation, out-of-order delivery.</td>
+              </tr>
+              <tr>
+                <td>Queues / streaming</td>
+                <td>Gate and yard events that need resilient transport and replay.</td>
+                <td>Poison messages, replay storms, consumer lag.</td>
+              </tr>
+              <tr>
+                <td>SFTP</td>
+                <td>Legacy partner exchanges and scheduled bulk reconciliation loads.</td>
+                <td>Schema drift, partial files, stale drops, duplicate batches.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>The temptation in enterprise integration is to draw a smooth line across all these mechanisms and call it interoperability. I do not buy that. Different interfaces imply different operational promises. Good design starts by admitting that rather than smoothing it away.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 04</div>
+            <h2>Retries are table stakes. Reconciliation is the part that proves you understand production.</h2>
+          </div>
+          <p class="lead-paragraph">The README names validation, retries, and dead-letter handling, which is exactly where my attention goes. Anyone can say “real-time sync.” The serious question is what happens when a recognition event contains an unmapped trailer identifier, when ERP is temporarily unavailable, or when WMS consumes an event twice after a network wobble. If the architecture cannot explain those cases, it is still marketing copy.</p>
+          <p>Idempotency matters because operational systems do not fail politely. The right recovery path is rarely “just retry.” It is “retry safely, without accidentally creating two arrivals, two charges, or two dock assignments.” That is why I want idempotency keys designed into the message shape and persisted long enough to survive normal replay windows. A replay should repair transport failure, not mutate state twice.</p>
+          <p>Dead-letter queues also need adult treatment. They are not the graveyard where unpleasant records go to disappear. They are a work queue for reconciliation. Somebody has to inspect the failure, identify whether the issue is schema validation, missing master data, stale partner mapping, or an upstream sequencing problem, then decide whether to correct and replay, suppress, or escalate. The integration layer has not finished its job until that ownership path is clear.</p>
+
+          <figure>
+            <div class="diagram">
+              <svg viewBox="0 0 1040 620" role="img" aria-labelledby="reconcile-title reconcile-desc">
+                <title id="reconcile-title">Reconciliation swimlane for failed yard events</title>
+                <desc id="reconcile-desc">A swimlane diagram showing event intake, validation, retry, dead-letter review, reference-data correction, and replay ownership across systems and support roles.</desc>
+                <defs>
+                  <marker id="arrow-b" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#111111"></path>
+                  </marker>
+                </defs>
+
+                <rect x="20" y="20" width="1000" height="580" fill="#ffffff" stroke="#111111" stroke-width="1.5"></rect>
+
+                <line x1="20" y1="120" x2="1020" y2="120" stroke="#dddddd" stroke-width="1.2"></line>
+                <line x1="20" y1="240" x2="1020" y2="240" stroke="#dddddd" stroke-width="1.2"></line>
+                <line x1="20" y1="360" x2="1020" y2="360" stroke="#dddddd" stroke-width="1.2"></line>
+                <line x1="20" y1="480" x2="1020" y2="480" stroke="#dddddd" stroke-width="1.2"></line>
+
+                <text x="40" y="78" font-size="16" font-weight="700" fill="#111111">Inbound source</text>
+                <text x="40" y="198" font-size="16" font-weight="700" fill="#111111">Integration middleware</text>
+                <text x="40" y="318" font-size="16" font-weight="700" fill="#111111">Reference-data owner</text>
+                <text x="40" y="438" font-size="16" font-weight="700" fill="#111111">Ops support / reconciliation</text>
+                <text x="40" y="558" font-size="16" font-weight="700" fill="#111111">Downstream consumer</text>
+
+                <rect x="220" y="52" width="160" height="48" fill="#f5f5f5" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="300" y="82" text-anchor="middle" font-size="14" fill="#111111">gate_in event arrives</text>
+
+                <rect x="450" y="172" width="170" height="54" fill="#ffffff" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="535" y="195" text-anchor="middle" font-size="14" font-weight="600" fill="#111111">validate payload</text>
+                <text x="535" y="214" text-anchor="middle" font-size="12" fill="#555555">schema + mapping + duplicates</text>
+
+                <line x1="380" y1="76" x2="450" y2="199" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+
+                <rect x="694" y="172" width="170" height="54" fill="#111111" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="779" y="195" text-anchor="middle" font-size="14" font-weight="600" fill="#f5f5f5">validation fails</text>
+                <text x="779" y="214" text-anchor="middle" font-size="12" fill="#dddddd">send to retry / DLQ path</text>
+
+                <line x1="620" y1="199" x2="694" y2="199" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+
+                <rect x="720" y="286" width="118" height="50" fill="#f0f0f0" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="779" y="317" text-anchor="middle" font-size="13" fill="#111111">missing mapping</text>
+
+                <line x1="779" y1="226" x2="779" y2="286" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+
+                <rect x="700" y="406" width="158" height="56" fill="#ffffff" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="779" y="430" text-anchor="middle" font-size="14" font-weight="600" fill="#111111">review failure record</text>
+                <text x="779" y="450" text-anchor="middle" font-size="12" fill="#555555">classify + assign owner</text>
+
+                <line x1="779" y1="336" x2="779" y2="406" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+
+                <rect x="470" y="286" width="170" height="50" fill="#f5f5f5" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="555" y="317" text-anchor="middle" font-size="13" fill="#111111">fix trailer / load mapping</text>
+
+                <line x1="700" y1="431" x2="555" y2="336" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+
+                <rect x="450" y="526" width="170" height="50" fill="#f5f5f5" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="535" y="557" text-anchor="middle" font-size="13" fill="#111111">replay same idempotency key</text>
+
+                <line x1="555" y1="336" x2="535" y2="526" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+
+                <rect x="720" y="526" width="118" height="50" fill="#111111" stroke="#111111" stroke-width="1.2"></rect>
+                <text x="779" y="557" text-anchor="middle" font-size="13" fill="#f5f5f5">accept once</text>
+
+                <line x1="620" y1="551" x2="720" y2="551" stroke="#111111" stroke-width="1.4" marker-end="url(#arrow-b)"></line>
+              </svg>
+            </div>
+            <figcaption>Retry logic without reconciliation logic is half a design. The actual operating loop includes classification, ownership, reference-data correction, and replay under the same idempotency identity.</figcaption>
+          </figure>
+
+          <div class="code">
+            <pre>def consume_gate_event(event):
+    key = event["idempotency_key"]
+
+    if seen_before(key):
+        return "duplicate_ignored"   # replay should be safe
+
+    validate_schema(event)
+    validate_reference_data(event)   # trailer, load, facility, order mappings
+
+    persist_event(event)
+    publish_status_updates(event)
+    mark_seen(key)
+
+    return "accepted"</pre>
+          </div>
+        </section>
+
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 05</div>
+            <h2>Security and tenancy are not side features when the integration crosses operations, finance, and audits.</h2>
+          </div>
+          <p class="lead-paragraph">The README names SSO, OAuth2, RBAC, encryption in transit and at rest, audit logging, and tenant isolation. That combination tells me the intended deployment is not just “we exposed some APIs.” It is a SaaS integration layer that expects enterprise scrutiny. That means the integration design has to answer identity questions and data-boundary questions as carefully as transport questions.</p>
+          <p>Role-based access is especially important here because not every consumer should see the same fields or invoke the same controls. A planning user may need load and schedule visibility. A finance workflow may care about chargeable dwell and audit history. A recognition system may only need to submit event evidence. Collapsing all of that behind one broad integration credential is how teams create avoidable security debt while claiming they shipped faster.</p>
+          <p>Tenant isolation matters for a subtler reason too. Enterprise logistics platforms almost always grow by onboarding clients with their own codes, mappings, facility structures, and compliance expectations. If the integration layer does not isolate tenant-specific transformations and credentials cleanly, “reusable connectors” become a myth. You end up with accidental cross-client assumptions embedded in mappings and retry routines, which is the opposite of plug-and-play.</p>
+          <p>I would also read the audit logging mention as a clue about where credibility lives. When finance and operations disagree, someone will ask not only what the current state is but how it got there. The integration layer should be able to show the inbound message, the transformed canonical record, the downstream fan-out, the retry history, and the reconciliation action if one occurred. If you cannot reconstruct that chain, you do not really have operational trust.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 06</div>
+            <h2>Observability, failover drills, and canary releases are ownership signals, not devops decoration.</h2>
+          </div>
+          <p class="lead-paragraph">The README ends with the right kind of language: load tests, stress tests, failover drills, UAT, tracing, metrics, alerts, SLAs, CI/CD, canary releases, rollback. That matters because integration platforms fail in ways users experience immediately. If a dashboard widget breaks, operators grumble. If gate events fail to propagate, dwell time, dock planning, and downstream billing can all drift at once.</p>
+          <p>Observability in this setting should answer very specific questions. Which connector is lagging? Which partner mapping is throwing validation errors? Are retries clearing successfully or piling up? How many dead-letter events are open by tenant and by event type? Are queue consumers keeping up with peak gate volumes? Those are operational questions, not abstract platform-health questions, and they should shape the telemetry.</p>
+          <p>Canary releases and rollback also make more sense in integration than people often admit. A tiny schema change on one connector can create client-specific havoc if you do not control blast radius. The proper use of a canary here is not bragging about progressive delivery. It is protecting shared operational truth while a new transformation or connector revision proves itself under real load.</p>
+          <p>The strongest sentence in the README may be the note that each onboarding used to require bespoke work. That is the disease this whole design is trying to cure. Observability and controlled rollout are part of the cure because they turn integration from artisanal firefighting into a managed platform capability.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="checkpoint-head">
+            <div class="checkpoint-tag">Gate 07</div>
+            <h2>The close-out question is not whether everything is connected. It is whether failure has an owner.</h2>
+          </div>
+          <p class="lead-paragraph">This is where integration articles usually get sentimental. They start talking about unified views and frictionless operations. I would rather end on something stricter. The architecture becomes credible when you can point to a failed event and say who sees it, who fixes it, who replays it, and who decides whether the original source or the canonical store is right.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Failure Case</th>
+                <th>Primary Owner</th>
+                <th>Why Ownership Belongs There</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Unknown trailer or load mapping</td>
+                <td>Reference-data steward / integration support</td>
+                <td>The issue is semantic alignment, not transport.</td>
+              </tr>
+              <tr>
+                <td>Downstream ERP timeout</td>
+                <td>Connector runtime owner</td>
+                <td>The event can usually be retried without changing business meaning.</td>
+              </tr>
+              <tr>
+                <td>Recognition event contradicts manual gate record</td>
+                <td>Operations supervisor with audit tooling</td>
+                <td>The conflict involves physical truth, not just technical delivery.</td>
+              </tr>
+              <tr>
+                <td>Duplicate delivery detected on replay</td>
+                <td>Platform service via idempotency guard</td>
+                <td>This should be handled automatically before user intervention.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>The folder does not give me source code, payload captures, or SLA exports. It does give me enough to say what kind of integration design this is aiming at: a secure, multi-tenant, retry-aware operational backbone for yard events and adjacent systems. That is a worthwhile target. It is also the kind of target where vague prose does real damage, because it hides the unglamorous work that makes enterprise integration survive first contact with production.</p>
+          <p class="ending">My view is simple: the mature version of this story is not “we connected the YMS.” It is “we decided how operational truth moves, how duplicates die, how mismatches get repaired, and which team wakes up when the route breaks.” That is infrastructure. Everything else is brochure copy.</p>
+        </section>
+      </div>
+
+      <aside class="right-rail">
+        <section class="right-card">
+          <h2>Source Evidence</h2>
+          <ul>
+            <li><a href="./README.md">README.md</a></li>
+            <li><a href="./handoff.md">handoff.md</a></li>
+            <li><a href="./tracker.json">tracker.json</a></li>
+          </ul>
+        </section>
+        <section class="right-card">
+          <h2>Interface Types Named In Repo</h2>
+          <ul>
+            <li>REST / JSON</li>
+            <li>Webhooks</li>
+            <li>Queues and event streaming</li>
+            <li>SFTP batch exchanges</li>
+          </ul>
+        </section>
+        <section class="right-card">
+          <h2>Design Bias</h2>
+          <p>I would rather see an article underclaim and explain failure handling well than overclaim and hide the recovery model. Enterprise readers notice the difference immediately.</p>
+        </section>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>
