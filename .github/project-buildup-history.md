@@ -40,3 +40,7 @@
 
 - Task summary: Late-night fix: went back and reorganized the config section so values are not buried mid-script.
 - Deliverable: One of those satisfying small wins.
+## 2024-02-19 - Day 8: Core interaction
+
+- Task summary: This was the middle stretch where the project started feeling real. I kept going and tried to implement the key interaction logic so the main scenario makes sense end to end, then cleaned up whatever looked confusing or weak from the earlier days. Once the base made some sense, I could finally move a bit faster and stop second guessing every tiny decision. A lot of the work here was really about workflow thinking, not just screens or files.
+- Deliverable: Ended the day with working core flow in hand, plus a few side notes on what still needed fixing later. It was not super polished, just stable enough that I felt okay moving forward.
