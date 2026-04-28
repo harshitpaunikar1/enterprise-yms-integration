@@ -62,5 +62,5 @@
 - Deliverable: Finished with polished project looking decent enough to call this version done, even if I could still nitpick a few things. I also left myself a few rough reminders for the next day so I would not have to rediscover the same context again.
 ## 2024-02-24 - Day 11: Documentation check
 
-- Task summary: Half-day Saturday session. Decided to finish the README section I skipped on Friday — cleaner now.
-- Deliverable: Nothing dramatic — just keeping things tidy.
+- Task summary: Half-day Saturday session. Decided to finish the README section I skipped on Friday - cleaner now.
+- Deliverable: Nothing dramatic - just keeping things tidy.
